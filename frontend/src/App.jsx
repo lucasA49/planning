@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
+import { ToastProvider } from './context/ToastContext.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Navbar from './components/Navbar.jsx';
 
@@ -12,9 +13,17 @@ import WorksiteTypes from './pages/admin/WorksiteTypes.jsx';
 import Planning from './pages/admin/Planning.jsx';
 import Stats from './pages/admin/Stats.jsx';
 import MySchedule from './pages/visitor/MySchedule.jsx';
+import NotFound from './pages/NotFound.jsx';
 
 const AppLayout = ({ children }) => {
-  const isMobile = window.innerWidth < 768;
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       <Navbar />
@@ -42,66 +51,68 @@ const App = () => {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/" element={<RootRedirect />} />
+        <ToastProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<RootRedirect />} />
 
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute requiredRole="admin">
-                <AppLayout><Dashboard /></AppLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/users"
-            element={
-              <ProtectedRoute requiredRole="admin">
-                <AppLayout><Users /></AppLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/locations"
-            element={
-              <ProtectedRoute requiredRole="admin">
-                <AppLayout><Locations /></AppLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/worksite-types"
-            element={
-              <ProtectedRoute requiredRole="admin">
-                <AppLayout><WorksiteTypes /></AppLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/planning"
-            element={
-              <ProtectedRoute requiredRole="admin">
-                <AppLayout><Planning /></AppLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/stats"
-            element={
-              <ProtectedRoute requiredRole="admin">
-                <AppLayout><Stats /></AppLayout>
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AppLayout><Dashboard /></AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AppLayout><Users /></AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/locations"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AppLayout><Locations /></AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/worksite-types"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AppLayout><WorksiteTypes /></AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/planning"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AppLayout><Planning /></AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/stats"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AppLayout><Stats /></AppLayout>
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/visitor"
-            element={<AppLayout><MySchedule /></AppLayout>}
-          />
+            <Route
+              path="/visitor"
+              element={<AppLayout><MySchedule /></AppLayout>}
+            />
 
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   );
