@@ -1,12 +1,5 @@
 import mysql from 'mysql2/promise';
 
-console.log('DB config:', {
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  database: process.env.DB_NAME,
-  hasPassword: !!process.env.DB_PASSWORD,
-});
-
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'root',
@@ -17,7 +10,7 @@ const pool = mysql.createPool({
   charset: 'utf8mb4',
 });
 
-try {
+export const initDB = async () => {
   await pool.execute(`CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -63,12 +56,6 @@ try {
     FOREIGN KEY (planning_id) REFERENCES plannings(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
-
-  console.log('Base de données initialisée avec succès');
-} catch (err) {
-  console.error('ERREUR connexion MySQL:', err.message);
-  console.error('Code:', err.code);
-  process.exit(1);
-}
+};
 
 export default pool;

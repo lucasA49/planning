@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { rateLimit } from 'express-rate-limit';
-import pool from './src/database.js';
+import pool, { initDB } from './src/database.js';
 import authRoutes from './src/routes/auth.js';
 import adminRoutes from './src/routes/admin.js';
 import visitorRoutes from './src/routes/visitor.js';
@@ -16,13 +16,10 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-// CORS
 const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
 app.use(cors({ origin: IS_PROD ? corsOrigin : true }));
-
 app.use(express.json());
 
-// Rate limiting sur le login
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -31,12 +28,10 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Routes API
 app.use('/api/auth', loginLimiter, authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/visitor', visitorRoutes);
 
-// En production : servir le build du frontend (dans backend/public/)
 if (IS_PROD) {
   const frontendDist = path.join(__dirname, 'public');
   app.use(express.static(frontendDist));
@@ -45,7 +40,6 @@ if (IS_PROD) {
   });
 }
 
-// Seed admin par défaut si aucun admin n'existe
 const seedAdmin = async () => {
   const [rows] = await pool.execute("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
   if (rows.length === 0) {
@@ -54,12 +48,21 @@ const seedAdmin = async () => {
       'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
       ['Administrateur', 'admin@planning.fr', hashedPassword, 'admin']
     );
-    console.log('Admin créé : admin@planning.fr / admin123 — CHANGEZ LE MOT DE PASSE !');
+    console.log('Admin créé : admin@planning.fr / admin123');
   }
 };
 
-seedAdmin().catch(console.error);
-
-app.listen(PORT, () => {
-  console.log(`Serveur démarré sur http://localhost:${PORT} [${IS_PROD ? 'production' : 'développement'}]`);
+app.listen(PORT, async () => {
+  console.log(`Serveur démarré sur port ${PORT}`);
+  console.log('DB_HOST:', process.env.DB_HOST);
+  console.log('DB_USER:', process.env.DB_USER);
+  console.log('DB_NAME:', process.env.DB_NAME);
+  try {
+    await initDB();
+    console.log('MySQL OK - tables prêtes');
+    await seedAdmin();
+  } catch (err) {
+    console.error('ERREUR MySQL:', err.message);
+    console.error('Code erreur:', err.code);
+  }
 });
