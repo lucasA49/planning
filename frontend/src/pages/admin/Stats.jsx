@@ -360,6 +360,190 @@ const Stats = () => {
     URL.revokeObjectURL(url);
   };
 
+  const buildChartSVGString = () => {
+    const periods = attendancePeriods;
+    const colorMap = {};
+    allWorkers.forEach((w, i) => { colorMap[w.id] = COLORS[i % COLORS.length]; });
+
+    if (!periods || periods.length === 0 || selectedIds.length === 0) {
+      return '<text x="10" y="30" font-size="14" fill="#94a3b8">Aucune donnée disponible</text>';
+    }
+
+    const maxDays = Math.max(
+      ...periods.flatMap(p => p.workers.filter(w => selectedIds.includes(w.user_id)).map(w => w.days)),
+      1
+    );
+
+    const BAR_W = 22, BAR_GAP = 4, GRP_PAD = 18, PAD_L = 50, PAD_B = 56, PAD_T = 20, PAD_R = 16, CH = 220;
+    const grpW = selectedIds.length * (BAR_W + BAR_GAP) - BAR_GAP + GRP_PAD;
+    const svgW = PAD_L + periods.length * grpW + PAD_R;
+    const svgH = CH + PAD_T + PAD_B;
+    const yTicks = [0, 0.25, 0.5, 0.75, 1];
+
+    let svgParts = [`<svg xmlns="http://www.w3.org/2000/svg" width="${svgW}" height="${svgH}">`];
+
+    // Grid + Y labels
+    for (const f of yTicks) {
+      const y = PAD_T + CH - f * CH;
+      const val = Math.round(f * maxDays * 2) / 2;
+      const strokeColor = f === 0 ? '#e2e8f0' : '#f1f5f9';
+      const sw = f === 0 ? 1.5 : 1;
+      svgParts.push(`<line x1="${PAD_L}" y1="${y}" x2="${svgW - PAD_R}" y2="${y}" stroke="${strokeColor}" stroke-width="${sw}"/>`);
+      svgParts.push(`<text x="${PAD_L - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="#94a3b8">${val}</text>`);
+    }
+
+    // Bars
+    for (let pi = 0; pi < periods.length; pi++) {
+      const period = periods[pi];
+      const gx = PAD_L + pi * grpW + GRP_PAD / 2;
+      const labelX = gx + (selectedIds.length * (BAR_W + BAR_GAP) - BAR_GAP) / 2;
+
+      for (let wi = 0; wi < selectedIds.length; wi++) {
+        const wid = selectedIds[wi];
+        const worker = period.workers.find(w => w.user_id === wid);
+        const days = worker?.days || 0;
+        const bh = days > 0 ? Math.max((days / maxDays) * CH, 3) : 0;
+        const bx = gx + wi * (BAR_W + BAR_GAP);
+        const by = PAD_T + CH - bh;
+        const color = colorMap[wid] || '#2563eb';
+        const absRate = period.working_days > 0 ? Math.round((1 - days / period.working_days) * 100) : null;
+        const workerName = allWorkers.find(w => w.id === wid)?.name || '';
+
+        svgParts.push(`<rect x="${bx}" y="${PAD_T}" width="${BAR_W}" height="${CH}" fill="#f8fafc" rx="3"/>`);
+        if (bh > 0) {
+          svgParts.push(`<rect x="${bx}" y="${by}" width="${BAR_W}" height="${bh}" fill="${color}" rx="3" opacity="0.88">`);
+          svgParts.push(`<title>${workerName} — ${days} j travaillés${absRate !== null ? ` — Absence : ${absRate}%` : ''}</title>`);
+          svgParts.push(`</rect>`);
+        }
+        if (bh >= 22) {
+          const dayLabel = days % 1 === 0 ? days : days.toFixed(1);
+          svgParts.push(`<text x="${bx + BAR_W / 2}" y="${by + bh - 5}" text-anchor="middle" font-size="9" fill="white" font-weight="700">${dayLabel}</text>`);
+        }
+      }
+
+      // Absence rate badges below X labels
+      const absRates = selectedIds.map(wid => {
+        const worker = period.workers.find(w => w.user_id === wid);
+        const days = worker?.days || 0;
+        return period.working_days > 0 ? Math.round((1 - days / period.working_days) * 100) : null;
+      }).filter(r => r !== null);
+      const avgAbs = absRates.length > 0 ? Math.round(absRates.reduce((a, b) => a + b, 0) / absRates.length) : null;
+
+      const xLabel = chartGroupBy === 'week' ? `S${period.period.split('-W')[1]}` : (() => {
+        const [y, m] = period.period.split('-');
+        return new Date(parseInt(y), parseInt(m) - 1, 1).toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+      })();
+      svgParts.push(`<text x="${labelX}" y="${PAD_T + CH + 18}" text-anchor="middle" font-size="11" fill="#64748b">${xLabel}</text>`);
+      if (chartGroupBy === 'week') {
+        svgParts.push(`<text x="${labelX}" y="${PAD_T + CH + 30}" text-anchor="middle" font-size="9" fill="#94a3b8">${period.period.split('-')[0]}</text>`);
+      }
+      if (avgAbs !== null) {
+        const badgeColor = avgAbs <= 20 ? '#16a34a' : avgAbs <= 50 ? '#d97706' : '#dc2626';
+        const yOff = chartGroupBy === 'week' ? PAD_T + CH + 44 : PAD_T + CH + 34;
+        svgParts.push(`<text x="${labelX}" y="${yOff}" text-anchor="middle" font-size="9" fill="${badgeColor}" font-weight="700">${avgAbs}%</text>`);
+      }
+    }
+
+    svgParts.push('</svg>');
+    return svgParts.join('');
+  };
+
+  const exportReport = () => {
+    let periodLabel = 'total';
+    if (filterMode === 'week') periodLabel = weekValue;
+    else if (filterMode === 'month') periodLabel = monthValue;
+
+    const date = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+    const filterText = filterMode === 'all' ? 'Toute la période'
+      : filterMode === 'week' ? `Semaine ${weekValue}` : `Mois ${monthValue}`;
+
+    const tableRows = sortedStats.map((s, i) => {
+      const absRate = attendancePeriods.length > 0
+        ? (() => {
+          let totalWorked = 0, totalAvail = 0;
+          for (const p of attendancePeriods) {
+            const w = p.workers.find(x => x.user_id === s.user_id);
+            if (w) { totalWorked += w.days; totalAvail += p.working_days; }
+          }
+          return totalAvail > 0 ? Math.round((1 - totalWorked / totalAvail) * 100) : null;
+        })()
+        : null;
+      const absColor = absRate === null ? '#64748b' : absRate <= 20 ? '#16a34a' : absRate <= 50 ? '#d97706' : '#dc2626';
+      return `<tr>
+        <td>${i + 1}</td>
+        <td>${s.name}</td>
+        <td style="text-align:center">${s.plannings_count}</td>
+        <td style="text-align:center;font-weight:700">${s.total_days}</td>
+        ${absRate !== null ? `<td style="text-align:center;font-weight:700;color:${absColor}">${absRate}%</td>` : '<td style="text-align:center;color:#94a3b8">—</td>'}
+      </tr>`;
+    }).join('');
+
+    const legendItems = allWorkers.filter(w => selectedIds.includes(w.id)).map((w, i) => {
+      const idx = allWorkers.findIndex(u => u.id === w.id);
+      return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#475569;margin:2px 6px">
+        <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${COLORS[idx % COLORS.length]}"></span>
+        ${w.name}
+      </span>`;
+    }).join('');
+
+    const chartSVG = buildChartSVGString();
+    const groupByLabel = chartGroupBy === 'week' ? 'semaine' : 'mois';
+
+    const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Rapport statistiques — ${periodLabel}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; padding: 32px; }
+  h1 { font-size: 24px; font-weight: 800; color: #1e293b; }
+  h2 { font-size: 16px; font-weight: 700; color: #1e293b; margin: 28px 0 12px; }
+  .meta { font-size: 13px; color: #64748b; margin-top: 6px; margin-bottom: 24px; }
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,0.07); }
+  th { background: #f1f5f9; padding: 11px 14px; font-size: 12px; font-weight: 700; color: #64748b; text-align: left; }
+  td { padding: 12px 14px; font-size: 13px; border-top: 1px solid #f1f5f9; }
+  tr:hover td { background: #fafafa; }
+  .chart-box { background: white; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.07); padding: 20px; overflow-x: auto; }
+  .legend { display: flex; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid #f1f5f9; }
+  .note { font-size: 11px; color: #94a3b8; margin-top: 8px; }
+  @media print { body { padding: 16px; background: white; } }
+</style>
+</head>
+<body>
+  <h1>Rapport statistiques</h1>
+  <div class="meta">Période : <strong>${filterText}</strong> &nbsp;|&nbsp; Généré le ${date}</div>
+
+  <h2>Jours travaillés par travailleur</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Nom</th>
+        <th style="text-align:center">Plannings</th>
+        <th style="text-align:center">Jours travaillés</th>
+        <th style="text-align:center">Taux d'absence</th>
+      </tr>
+    </thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+
+  <h2>Graphique d'activité — par ${groupByLabel}</h2>
+  <div class="chart-box">
+    ${chartSVG}
+    <div class="legend">${legendItems}</div>
+    <div class="note">Taux d'absence calculé sur les jours ouvrés (lun–ven). 🟢 &lt;20% &nbsp; 🟡 20–50% &nbsp; 🔴 &gt;50%</div>
+  </div>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `rapport_stats_${periodLabel}.html`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const btnStyle = (active) => ({
     padding: '6px 16px', borderRadius: '8px', border: 'none', cursor: 'pointer',
     fontSize: '13px', fontWeight: '600',
@@ -376,9 +560,14 @@ const Stats = () => {
           <p style={{ color: '#64748b', fontSize: '14px' }}>Jours travaillés par travailleur</p>
         </div>
         {stats.length > 0 && (
-          <button onClick={exportCSV} style={{ padding: '8px 18px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
-            Exporter CSV
-          </button>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button onClick={exportCSV} style={{ padding: '8px 18px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+              Exporter CSV
+            </button>
+            <button onClick={exportReport} style={{ padding: '8px 18px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+              Exporter rapport
+            </button>
+          </div>
         )}
       </div>
 
