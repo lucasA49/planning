@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import * as User from '../models/User.js';
 
-const JWT_SECRET = 'planning_jwt_secret_2024';
+const JWT_SECRET = process.env.JWT_SECRET || 'planning_jwt_secret_2024';
 
 export const login = (req, res) => {
   const { email, password } = req.body;

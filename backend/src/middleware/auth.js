@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = 'planning_jwt_secret_2024';
+const JWT_SECRET = process.env.JWT_SECRET || 'planning_jwt_secret_2024';
 
 export const verifyToken = (req, res, next) => {
   const authHeader = req.headers.authorization;

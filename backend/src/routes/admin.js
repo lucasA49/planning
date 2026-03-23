@@ -9,6 +9,10 @@ const router = Router();
 
 router.use(verifyToken, isAdmin);
 
+// Account (own profile)
+router.get('/account', userController.getAccount);
+router.put('/account', userController.updateAccount);
+
 // Users
 router.get('/users', userController.getAll);
 router.post('/users', userController.create);

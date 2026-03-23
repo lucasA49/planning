@@ -229,6 +229,10 @@ const Users = () => {
         </button>
       </div>
 
+      <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '10px 16px', marginBottom: '16px', fontSize: '13px', color: '#1d4ed8' }}>
+        Vous pouvez créer des <strong>comptes administrateurs</strong> en choisissant le rôle "Administrateur" lors de l'ajout d'un utilisateur.
+      </div>
+
       {/* Recherche */}
       <div style={{ marginBottom: '16px' }}>
         <input

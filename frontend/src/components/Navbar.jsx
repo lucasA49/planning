@@ -85,10 +85,14 @@ const Navbar = () => {
             </div>
             <div style={{ marginTop: 'auto' }}>
               {user && (
-                <div style={{ padding: '16px 20px', borderTop: '1px solid #334155', fontSize: '12px', color: '#64748b' }}>
+                <NavLink to="/admin/account" style={({ isActive }) => ({
+                  display: 'block', padding: '16px 20px', borderTop: '1px solid #334155',
+                  fontSize: '12px', textDecoration: 'none',
+                  background: isActive ? '#2563eb22' : 'transparent',
+                })}>
                   <div style={{ fontWeight: '600', color: '#cbd5e1', marginBottom: '2px' }}>{user.name}</div>
-                  <div>{user.email}</div>
-                </div>
+                  <div style={{ color: '#64748b' }}>{user.email}</div>
+                </NavLink>
               )}
               {user && (
                 <button
@@ -125,11 +129,15 @@ const Navbar = () => {
 
       <div style={{ marginTop: 'auto' }}>
         {user && (
-          <div style={{ padding: '16px 20px', borderTop: '1px solid #334155', fontSize: '12px', color: '#64748b' }}>
+          <NavLink to="/admin/account" style={({ isActive }) => ({
+            display: 'block', padding: '16px 20px', borderTop: '1px solid #334155',
+            fontSize: '12px', textDecoration: 'none',
+            background: isActive ? '#2563eb22' : 'transparent',
+          })}>
             <div style={{ fontWeight: '600', color: '#cbd5e1', marginBottom: '2px' }}>{user.name}</div>
-            <div>{user.email}</div>
+            <div style={{ color: '#64748b' }}>{user.email}</div>
             <div style={{ marginTop: '4px', textTransform: 'uppercase', fontSize: '11px', color: '#2563eb' }}>{user.role}</div>
-          </div>
+          </NavLink>
         )}
         {user && (
           <button

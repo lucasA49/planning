@@ -12,6 +12,7 @@ import Locations from './pages/admin/Locations.jsx';
 import WorksiteTypes from './pages/admin/WorksiteTypes.jsx';
 import Planning from './pages/admin/Planning.jsx';
 import Stats from './pages/admin/Stats.jsx';
+import Account from './pages/admin/Account.jsx';
 import MySchedule from './pages/visitor/MySchedule.jsx';
 import NotFound from './pages/NotFound.jsx';
 
@@ -101,6 +102,14 @@ const App = () => {
               element={
                 <ProtectedRoute requiredRole="admin">
                   <AppLayout><Stats /></AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/account"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AppLayout><Account /></AppLayout>
                 </ProtectedRoute>
               }
             />

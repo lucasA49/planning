@@ -58,17 +58,17 @@ export const findByUserId = (userId, startDate, endDate) => {
   return plannings.map(enrichPlanning);
 };
 
-export const create = ({ start_date, end_date, location_id, worksite_type_id, notes }) => {
+export const create = ({ start_date, end_date, location_id, worksite_type_id, notes, day_type }) => {
   // keep week_start for backward compat, set it = start_date
   const week_start = start_date || null;
   const stmt = db.prepare(
-    'INSERT INTO plannings (week_start, start_date, end_date, location_id, worksite_type_id, notes) VALUES (?, ?, ?, ?, ?, ?)'
+    'INSERT INTO plannings (week_start, start_date, end_date, location_id, worksite_type_id, notes, day_type) VALUES (?, ?, ?, ?, ?, ?, ?)'
   );
-  const result = stmt.run(week_start, start_date || null, end_date || null, location_id, worksite_type_id, notes || null);
+  const result = stmt.run(week_start, start_date || null, end_date || null, location_id, worksite_type_id, notes || null, day_type || 'full');
   return findById(result.lastInsertRowid);
 };
 
-export const update = (id, { start_date, end_date, week_start, location_id, worksite_type_id, notes }) => {
+export const update = (id, { start_date, end_date, week_start, location_id, worksite_type_id, notes, day_type }) => {
   const planning = db.prepare('SELECT * FROM plannings WHERE id = ?').get(id);
   if (!planning) return null;
 
@@ -89,6 +89,7 @@ export const update = (id, { start_date, end_date, week_start, location_id, work
   if (location_id !== undefined) { updates.push('location_id = ?'); values.push(location_id); }
   if (worksite_type_id !== undefined) { updates.push('worksite_type_id = ?'); values.push(worksite_type_id); }
   if (notes !== undefined) { updates.push('notes = ?'); values.push(notes); }
+  if (day_type !== undefined) { updates.push('day_type = ?'); values.push(day_type); }
 
   if (updates.length === 0) return findById(id);
 
@@ -116,26 +117,40 @@ export const removeUser = (planningId, userId) => {
   return result.changes > 0;
 };
 
-export const getDaysWorkedStats = () => {
-  const rows = db.prepare(`
+export const getDaysWorkedStats = (startDate, endDate) => {
+  let query = `
     SELECT u.id as user_id, u.name,
-           p.start_date, p.end_date
+           p.start_date, p.end_date, p.day_type
     FROM users u
     JOIN planning_users pu ON u.id = pu.user_id
     JOIN plannings p ON p.id = pu.planning_id
     WHERE u.role = 'visitor' AND p.start_date IS NOT NULL AND p.end_date IS NOT NULL
-    ORDER BY u.name
-  `).all();
+  `;
+  const params = [];
 
-  // Group by user and sum days
+  if (startDate && endDate) {
+    query += ' AND p.start_date <= ? AND p.end_date >= ?';
+    params.push(endDate, startDate);
+  }
+
+  query += ' ORDER BY u.name';
+
+  const rows = db.prepare(query).all(...params);
+
   const map = {};
   for (const row of rows) {
     if (!map[row.user_id]) map[row.user_id] = { user_id: row.user_id, name: row.name, total_days: 0, plannings_count: 0 };
-    const start = new Date(row.start_date + 'T00:00:00');
-    const end = new Date(row.end_date + 'T00:00:00');
-    const days = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
-    map[row.user_id].total_days += days;
-    map[row.user_id].plannings_count += 1;
+    // Clip dates to the filter period
+    const effectiveStart = startDate && row.start_date < startDate ? startDate : row.start_date;
+    const effectiveEnd = endDate && row.end_date > endDate ? endDate : row.end_date;
+    const start = new Date(effectiveStart + 'T00:00:00');
+    const end = new Date(effectiveEnd + 'T00:00:00');
+    const dayCount = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    if (dayCount > 0) {
+      const multiplier = (row.day_type === 'morning' || row.day_type === 'afternoon') ? 0.5 : 1;
+      map[row.user_id].total_days += dayCount * multiplier;
+      map[row.user_id].plannings_count += 1;
+    }
   }
   return Object.values(map).sort((a, b) => b.total_days - a.total_days);
 };

@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import * as User from '../models/User.js';
+import db from '../database.js';
 
 export const getAll = (req, res) => {
   const users = User.findAll();
@@ -98,4 +99,46 @@ export const deleteUser = (req, res) => {
     return res.status(404).json({ success: false, message: 'User not found' });
   }
   return res.json({ success: true, data: { message: 'User deleted' } });
+};
+
+export const getAccount = (req, res) => {
+  const user = User.findById(req.user.id);
+  if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+  return res.json({ success: true, data: user });
+};
+
+export const updateAccount = (req, res) => {
+  const id = req.user.id;
+  const { name, email, current_password, new_password } = req.body;
+
+  const userWithPwd = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+  if (!userWithPwd) return res.status(404).json({ success: false, message: 'User not found' });
+
+  // Require current_password if changing email or password
+  const changingEmail = email && email !== userWithPwd.email;
+  const changingPassword = !!new_password;
+
+  if ((changingEmail || changingPassword) && !current_password) {
+    return res.status(400).json({ success: false, message: 'Mot de passe actuel requis pour modifier email ou mot de passe' });
+  }
+
+  if (current_password) {
+    const valid = bcrypt.compareSync(current_password, userWithPwd.password);
+    if (!valid) return res.status(401).json({ success: false, message: 'Mot de passe actuel incorrect' });
+  }
+
+  if (changingEmail) {
+    const existing = User.findByEmail(email);
+    if (existing && existing.id !== id) {
+      return res.status(409).json({ success: false, message: 'Email déjà utilisé' });
+    }
+  }
+
+  const updates = {};
+  if (name) updates.name = name;
+  if (changingEmail) updates.email = email;
+  if (changingPassword) updates.password = bcrypt.hashSync(new_password, 10);
+
+  const updated = User.update(id, updates);
+  return res.json({ success: true, data: updated });
 };

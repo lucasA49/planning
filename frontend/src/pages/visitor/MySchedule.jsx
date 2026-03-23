@@ -133,9 +133,12 @@ const EmptyState = ({ message }) => (
   </div>
 );
 
+const DAY_TYPE_LABELS = { morning: 'Matin', afternoon: 'Après-midi' };
+
 const PlanningCard = ({ planning }) => {
   const wt = planning.worksiteType;
   const color = wt?.color || '#2563eb';
+  const halfDayLabel = DAY_TYPE_LABELS[planning.day_type];
 
   return (
     <div style={{
@@ -149,13 +152,24 @@ const PlanningCard = ({ planning }) => {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '12px 16px', borderBottom: '1px solid #f1f5f9', flexWrap: 'wrap', gap: '8px'
       }}>
-        <span style={{
-          padding: '3px 12px', borderRadius: '20px',
-          background: color + '20', color,
-          fontWeight: '700', fontSize: '12px'
-        }}>
-          {wt?.name || '—'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <span style={{
+            padding: '3px 12px', borderRadius: '20px',
+            background: color + '20', color,
+            fontWeight: '700', fontSize: '12px'
+          }}>
+            {wt?.name || '—'}
+          </span>
+          {halfDayLabel && (
+            <span style={{
+              padding: '2px 8px', borderRadius: '10px',
+              background: '#fef3c7', color: '#b45309',
+              fontWeight: '600', fontSize: '11px'
+            }}>
+              {halfDayLabel}
+            </span>
+          )}
+        </div>
         <span style={{ fontSize: '13px', color: '#64748b', whiteSpace: 'nowrap' }}>
           {toFR(planning.start_date)} → {toFR(planning.end_date)}
         </span>

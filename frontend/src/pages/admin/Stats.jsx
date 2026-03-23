@@ -93,6 +93,8 @@ const Stats = () => {
 
   const maxDays = sortedStats.length > 0 ? Math.max(...sortedStats.map(s => s.total_days)) : 1;
 
+  const formatDays = (d) => Number.isInteger(d) ? `${d} j` : `${d} j`;
+
   const exportCSV = () => {
     let periodLabel = 'total';
     if (filterMode === 'week') periodLabel = weekValue;
@@ -271,7 +273,7 @@ const Stats = () => {
                           }} />
                         </div>
                         <span style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b', minWidth: '48px', textAlign: 'right' }}>
-                          {s.total_days} j
+                          {formatDays(s.total_days)}
                         </span>
                       </div>
                     </td>

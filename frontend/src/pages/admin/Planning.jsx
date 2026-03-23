@@ -19,6 +19,8 @@ const toFR = (dateStr) => {
 const today = () => new Date().toISOString().split('T')[0];
 
 /* ─── Modal création/édition ─── */
+const DAY_TYPE_LABELS = { full: 'Journée complète', morning: 'Matin (½ journée)', afternoon: 'Après-midi (½ journée)' };
+
 const PlanningModal = ({ onClose, onSubmit, initialData, locations, worksiteTypes, users, plannings }) => {
   const [form, setForm] = useState({
     start_date: initialData?.start_date || today(),
@@ -26,6 +28,7 @@ const PlanningModal = ({ onClose, onSubmit, initialData, locations, worksiteType
     location_id: initialData?.location_id || (locations[0]?.id || ''),
     worksite_type_id: initialData?.worksite_type_id || (worksiteTypes[0]?.id || ''),
     notes: initialData?.notes || '',
+    day_type: initialData?.day_type || 'full',
     user_ids: initialData?.users?.map(u => u.id) || []
   });
   const [error, setError] = useState('');
@@ -88,6 +91,22 @@ const PlanningModal = ({ onClose, onSubmit, initialData, locations, worksiteType
                 onChange={e => setForm({ ...form, end_date: e.target.value })} required
               />
             </div>
+          </div>
+
+          <label style={labelStyle}>Type de journée</label>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+            {Object.entries(DAY_TYPE_LABELS).map(([val, label]) => (
+              <label key={val} style={{
+                display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
+                padding: '6px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: '500',
+                border: `1px solid ${form.day_type === val ? '#2563eb' : '#e2e8f0'}`,
+                background: form.day_type === val ? '#eff6ff' : 'white',
+                color: form.day_type === val ? '#2563eb' : '#374151'
+              }}>
+                <input type="radio" name="day_type" value={val} checked={form.day_type === val} onChange={e => setForm({ ...form, day_type: e.target.value })} style={{ display: 'none' }} />
+                {label}
+              </label>
+            ))}
           </div>
 
           <label style={labelStyle}>Localisation</label>
@@ -245,6 +264,11 @@ const CalendarView = ({ plannings, onEdit }) => {
 };
 
 /* ─── Page principale ─── */
+const DAY_TYPE_BADGE = {
+  morning: { label: 'Matin', bg: '#fef3c7', color: '#b45309' },
+  afternoon: { label: 'Après-midi', bg: '#fef3c7', color: '#b45309' },
+};
+
 const Planning = () => {
   const { addToast } = useToast();
   const [plannings, setPlannings] = useState([]);
@@ -408,10 +432,15 @@ const Planning = () => {
             return (
               <div key={planning.id} style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 6px rgba(0,0,0,0.06)', borderLeft: `4px solid ${color}`, overflow: 'hidden' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #f1f5f9', flexWrap: 'wrap', gap: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <span style={{ padding: '3px 12px', borderRadius: '20px', background: color + '20', color, fontWeight: '700', fontSize: '12px' }}>
                       {wt?.name || '—'}
                     </span>
+                    {DAY_TYPE_BADGE[planning.day_type] && (
+                      <span style={{ padding: '2px 8px', borderRadius: '10px', background: DAY_TYPE_BADGE[planning.day_type].bg, color: DAY_TYPE_BADGE[planning.day_type].color, fontWeight: '600', fontSize: '11px' }}>
+                        {DAY_TYPE_BADGE[planning.day_type].label}
+                      </span>
+                    )}
                     {conflictingUsers.length > 0 && (
                       <span style={{ padding: '2px 8px', borderRadius: '10px', background: '#fef3c7', color: '#b45309', fontWeight: '600', fontSize: '11px' }}>
                         Conflit — {conflictingUsers.map(u => u.name).join(', ')}

@@ -28,16 +28,23 @@ export const getById = (req, res) => {
 };
 
 export const create = (req, res) => {
-  const { start_date, end_date, location_id, worksite_type_id, notes, user_ids } = req.body;
+  const { start_date, end_date, location_id, worksite_type_id, notes, user_ids, day_type } = req.body;
 
   if (!start_date || !end_date || !location_id || !worksite_type_id) {
     return res.status(400).json({
       success: false,
-      message: 'start_date, end_date, location_id and worksite_type_id are required'
+      message: 'start_date, end_date, location_id and worksite_type_id sont requis'
     });
   }
 
-  const planning = Planning.create({ start_date, end_date, location_id, worksite_type_id, notes });
+  if (end_date < start_date) {
+    return res.status(400).json({
+      success: false,
+      message: 'La date de fin doit être égale ou postérieure à la date de début'
+    });
+  }
+
+  const planning = Planning.create({ start_date, end_date, location_id, worksite_type_id, notes, day_type });
 
   if (user_ids && Array.isArray(user_ids)) {
     for (const userId of user_ids) {
@@ -51,14 +58,21 @@ export const create = (req, res) => {
 
 export const update = (req, res) => {
   const id = parseInt(req.params.id);
-  const { start_date, end_date, location_id, worksite_type_id, notes, user_ids } = req.body;
+  const { start_date, end_date, location_id, worksite_type_id, notes, user_ids, day_type } = req.body;
 
   const existing = Planning.findById(id);
   if (!existing) {
     return res.status(404).json({ success: false, message: 'Planning not found' });
   }
 
-  Planning.update(id, { start_date, end_date, location_id, worksite_type_id, notes });
+  if (start_date && end_date && end_date < start_date) {
+    return res.status(400).json({
+      success: false,
+      message: 'La date de fin doit être égale ou postérieure à la date de début'
+    });
+  }
+
+  Planning.update(id, { start_date, end_date, location_id, worksite_type_id, notes, day_type });
 
   if (user_ids !== undefined && Array.isArray(user_ids)) {
     const currentUserIds = existing.users.map(u => u.id);
@@ -160,6 +174,7 @@ export const getAllPlannings = (req, res) => {
 };
 
 export const getStats = (req, res) => {
-  const stats = Planning.getDaysWorkedStats();
+  const { start, end } = req.query;
+  const stats = Planning.getDaysWorkedStats(start || null, end || null);
   return res.json({ success: true, data: stats });
 };

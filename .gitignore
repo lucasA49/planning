@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Database (ne jamais committer la base de données)
+backend/planning.db
+backend/planning.db-shm
+backend/planning.db-wal
+
+# Environment variables (secrets)
+backend/.env
+.env
+
+# Frontend build
+frontend/dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

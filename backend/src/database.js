@@ -70,4 +70,9 @@ if (!cols.some(c => c.name === 'start_date')) {
   }
 }
 
+// Migration: add day_type column to plannings
+if (!cols.some(c => c.name === 'day_type')) {
+  db.exec("ALTER TABLE plannings ADD COLUMN day_type TEXT NOT NULL DEFAULT 'full'");
+}
+
 export default db;
