@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "node --experimental-sqlite server.js",
-    "dev": "node --experimental-sqlite server.js"
+    "dev": "node --experimental-sqlite server.js",
+    "postinstall": "cd ../frontend && npm install --include=dev && npm run build"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -1,9 +1,0 @@
-{
-  "name": "planning-app",
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "start": "node --experimental-sqlite backend/server.js",
-    "postinstall": "cd backend && npm install --ignore-scripts && cd ../frontend && npm install --include=dev && npm run build"
-  }
-}
