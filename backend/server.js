@@ -36,9 +36,9 @@ app.use('/api/auth', loginLimiter, authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/visitor', visitorRoutes);
 
-// En production : servir le build du frontend
+// En production : servir le build du frontend (dans backend/public/)
 if (IS_PROD) {
-  const frontendDist = path.join(__dirname, '..', 'frontend', 'dist');
+  const frontendDist = path.join(__dirname, 'public');
   app.use(express.static(frontendDist));
   // Toutes les routes non-API renvoient index.html (React Router)
   app.get('*', (req, res) => {

@@ -14,6 +14,7 @@ backend/.env
 
 # Frontend build
 frontend/dist/
+backend/public/
 
 # Logs
 *.log
