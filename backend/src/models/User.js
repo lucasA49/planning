@@ -1,26 +1,36 @@
-import db from '../database.js';
+import pool from '../database.js';
 
-export const findAll = () => {
-  return db.prepare('SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC').all();
+export const findAll = async () => {
+  const [rows] = await pool.execute('SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC');
+  return rows;
 };
 
-export const findById = (id) => {
-  return db.prepare('SELECT id, name, email, role, created_at FROM users WHERE id = ?').get(id);
+export const findById = async (id) => {
+  const [rows] = await pool.execute('SELECT id, name, email, role, created_at FROM users WHERE id = ?', [id]);
+  return rows[0] || null;
 };
 
-export const findByEmail = (email) => {
-  return db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+export const findByIdWithPassword = async (id) => {
+  const [rows] = await pool.execute('SELECT * FROM users WHERE id = ?', [id]);
+  return rows[0] || null;
 };
 
-export const create = ({ name, email, password, role = 'visitor' }) => {
-  const stmt = db.prepare('INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)');
-  const result = stmt.run(name, email, password, role);
-  return findById(result.lastInsertRowid);
+export const findByEmail = async (email) => {
+  const [rows] = await pool.execute('SELECT * FROM users WHERE email = ?', [email]);
+  return rows[0] || null;
 };
 
-export const update = (id, { name, email, password, role }) => {
-  const user = findById(id);
-  if (!user) return null;
+export const create = async ({ name, email, password, role = 'visitor' }) => {
+  const [result] = await pool.execute(
+    'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
+    [name, email, password, role]
+  );
+  return findById(result.insertId);
+};
+
+export const update = async (id, { name, email, password, role }) => {
+  const existing = await findById(id);
+  if (!existing) return null;
 
   const updates = [];
   const values = [];
@@ -33,11 +43,11 @@ export const update = (id, { name, email, password, role }) => {
   if (updates.length === 0) return findById(id);
 
   values.push(id);
-  db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  await pool.execute(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, values);
   return findById(id);
 };
 
-export const deleteUser = (id) => {
-  const result = db.prepare('DELETE FROM users WHERE id = ?').run(id);
-  return result.changes > 0;
+export const deleteUser = async (id) => {
+  const [result] = await pool.execute('DELETE FROM users WHERE id = ?', [id]);
+  return result.affectedRows > 0;
 };

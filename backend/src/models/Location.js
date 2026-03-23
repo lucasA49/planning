@@ -1,22 +1,26 @@
-import db from '../database.js';
+import pool from '../database.js';
 
-export const findAll = () => {
-  return db.prepare('SELECT * FROM locations ORDER BY name ASC').all();
+export const findAll = async () => {
+  const [rows] = await pool.execute('SELECT * FROM locations ORDER BY name ASC');
+  return rows;
 };
 
-export const findById = (id) => {
-  return db.prepare('SELECT * FROM locations WHERE id = ?').get(id);
+export const findById = async (id) => {
+  const [rows] = await pool.execute('SELECT * FROM locations WHERE id = ?', [id]);
+  return rows[0] || null;
 };
 
-export const create = ({ name, address }) => {
-  const stmt = db.prepare('INSERT INTO locations (name, address) VALUES (?, ?)');
-  const result = stmt.run(name, address || null);
-  return findById(result.lastInsertRowid);
+export const create = async ({ name, address }) => {
+  const [result] = await pool.execute(
+    'INSERT INTO locations (name, address) VALUES (?, ?)',
+    [name, address || null]
+  );
+  return findById(result.insertId);
 };
 
-export const update = (id, { name, address }) => {
-  const location = findById(id);
-  if (!location) return null;
+export const update = async (id, { name, address }) => {
+  const existing = await findById(id);
+  if (!existing) return null;
 
   const updates = [];
   const values = [];
@@ -27,11 +31,11 @@ export const update = (id, { name, address }) => {
   if (updates.length === 0) return findById(id);
 
   values.push(id);
-  db.prepare(`UPDATE locations SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  await pool.execute(`UPDATE locations SET ${updates.join(', ')} WHERE id = ?`, values);
   return findById(id);
 };
 
-export const deleteLocation = (id) => {
-  const result = db.prepare('DELETE FROM locations WHERE id = ?').run(id);
-  return result.changes > 0;
+export const deleteLocation = async (id) => {
+  const [result] = await pool.execute('DELETE FROM locations WHERE id = ?', [id]);
+  return result.affectedRows > 0;
 };

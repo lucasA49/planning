@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { rateLimit } from 'express-rate-limit';
-import db from './src/database.js';
+import pool from './src/database.js';
 import authRoutes from './src/routes/auth.js';
 import adminRoutes from './src/routes/admin.js';
 import visitorRoutes from './src/routes/visitor.js';
@@ -40,28 +40,25 @@ app.use('/api/visitor', visitorRoutes);
 if (IS_PROD) {
   const frontendDist = path.join(__dirname, 'public');
   app.use(express.static(frontendDist));
-  // Toutes les routes non-API renvoient index.html (React Router)
   app.get('*', (req, res) => {
     res.sendFile(path.join(frontendDist, 'index.html'));
   });
 }
 
 // Seed admin par défaut si aucun admin n'existe
-const seedAdmin = () => {
-  const existingAdmin = db.prepare("SELECT id FROM users WHERE role = 'admin'").get();
-  if (!existingAdmin) {
+const seedAdmin = async () => {
+  const [rows] = await pool.execute("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
+  if (rows.length === 0) {
     const hashedPassword = bcrypt.hashSync('admin123', 10);
-    db.prepare('INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)').run(
-      'Administrateur',
-      'admin@planning.fr',
-      hashedPassword,
-      'admin'
+    await pool.execute(
+      'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
+      ['Administrateur', 'admin@planning.fr', hashedPassword, 'admin']
     );
     console.log('Admin créé : admin@planning.fr / admin123 — CHANGEZ LE MOT DE PASSE !');
   }
 };
 
-seedAdmin();
+seedAdmin().catch(console.error);
 
 app.listen(PORT, () => {
   console.log(`Serveur démarré sur http://localhost:${PORT} [${IS_PROD ? 'production' : 'développement'}]`);

@@ -1,44 +1,39 @@
-import db from '../database.js';
+import pool from '../database.js';
 
-const enrichPlanning = (planning) => {
+const enrichPlanning = async (planning) => {
   if (!planning) return null;
 
-  const location = db.prepare('SELECT * FROM locations WHERE id = ?').get(planning.location_id);
-  const worksiteType = db.prepare('SELECT * FROM worksite_types WHERE id = ?').get(planning.worksite_type_id);
-  const users = db.prepare(`
+  const [locRows] = await pool.execute('SELECT * FROM locations WHERE id = ?', [planning.location_id]);
+  const [wtRows] = await pool.execute('SELECT * FROM worksite_types WHERE id = ?', [planning.worksite_type_id]);
+  const [users] = await pool.execute(`
     SELECT u.id, u.name, u.email, u.role
     FROM users u
     JOIN planning_users pu ON u.id = pu.user_id
     WHERE pu.planning_id = ?
-  `).all(planning.id);
+  `, [planning.id]);
 
-  return { ...planning, location, worksiteType, users };
+  return { ...planning, location: locRows[0] || null, worksiteType: wtRows[0] || null, users };
 };
 
-export const findAll = () => {
-  const plannings = db.prepare('SELECT * FROM plannings ORDER BY start_date DESC').all();
-  return plannings.map(enrichPlanning);
+export const findAll = async () => {
+  const [plannings] = await pool.execute('SELECT * FROM plannings ORDER BY start_date DESC');
+  return Promise.all(plannings.map(enrichPlanning));
 };
 
-export const findById = (id) => {
-  const planning = db.prepare('SELECT * FROM plannings WHERE id = ?').get(id);
-  return enrichPlanning(planning);
+export const findById = async (id) => {
+  const [rows] = await pool.execute('SELECT * FROM plannings WHERE id = ?', [id]);
+  return enrichPlanning(rows[0] || null);
 };
 
-export const findByDateRange = (startDate, endDate) => {
-  const plannings = db.prepare(
-    'SELECT * FROM plannings WHERE start_date <= ? AND end_date >= ? ORDER BY start_date ASC'
-  ).all(endDate, startDate);
-  return plannings.map(enrichPlanning);
+export const findByDateRange = async (startDate, endDate) => {
+  const [plannings] = await pool.execute(
+    'SELECT * FROM plannings WHERE start_date <= ? AND end_date >= ? ORDER BY start_date ASC',
+    [endDate, startDate]
+  );
+  return Promise.all(plannings.map(enrichPlanning));
 };
 
-// Keep for backward compat
-export const findByWeek = (weekStart) => {
-  const plannings = db.prepare('SELECT * FROM plannings WHERE week_start = ? ORDER BY id ASC').all(weekStart);
-  return plannings.map(enrichPlanning);
-};
-
-export const findByUserId = (userId, startDate, endDate) => {
+export const findByUserId = async (userId, startDate, endDate) => {
   let query = `
     SELECT p.*
     FROM plannings p
@@ -54,36 +49,31 @@ export const findByUserId = (userId, startDate, endDate) => {
 
   query += ' ORDER BY p.start_date DESC';
 
-  const plannings = db.prepare(query).all(...params);
-  return plannings.map(enrichPlanning);
+  const [plannings] = await pool.execute(query, params);
+  return Promise.all(plannings.map(enrichPlanning));
 };
 
-export const create = ({ start_date, end_date, location_id, worksite_type_id, notes, day_type }) => {
-  // keep week_start for backward compat, set it = start_date
+export const create = async ({ start_date, end_date, location_id, worksite_type_id, notes, day_type }) => {
   const week_start = start_date || null;
-  const stmt = db.prepare(
-    'INSERT INTO plannings (week_start, start_date, end_date, location_id, worksite_type_id, notes, day_type) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  const [result] = await pool.execute(
+    'INSERT INTO plannings (week_start, start_date, end_date, location_id, worksite_type_id, notes, day_type) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [week_start, start_date || null, end_date || null, location_id, worksite_type_id, notes || null, day_type || 'full']
   );
-  const result = stmt.run(week_start, start_date || null, end_date || null, location_id, worksite_type_id, notes || null, day_type || 'full');
-  return findById(result.lastInsertRowid);
+  return findById(result.insertId);
 };
 
-export const update = (id, { start_date, end_date, week_start, location_id, worksite_type_id, notes, day_type }) => {
-  const planning = db.prepare('SELECT * FROM plannings WHERE id = ?').get(id);
-  if (!planning) return null;
+export const update = async (id, { start_date, end_date, week_start, location_id, worksite_type_id, notes, day_type }) => {
+  const [rows] = await pool.execute('SELECT * FROM plannings WHERE id = ?', [id]);
+  if (!rows[0]) return null;
 
   const updates = [];
   const values = [];
 
   if (start_date !== undefined) {
-    updates.push('start_date = ?');
-    values.push(start_date);
-    // keep week_start in sync
-    updates.push('week_start = ?');
-    values.push(start_date);
+    updates.push('start_date = ?'); values.push(start_date);
+    updates.push('week_start = ?'); values.push(start_date);
   } else if (week_start !== undefined) {
-    updates.push('week_start = ?');
-    values.push(week_start);
+    updates.push('week_start = ?'); values.push(week_start);
   }
   if (end_date !== undefined) { updates.push('end_date = ?'); values.push(end_date); }
   if (location_id !== undefined) { updates.push('location_id = ?'); values.push(location_id); }
@@ -94,27 +84,30 @@ export const update = (id, { start_date, end_date, week_start, location_id, work
   if (updates.length === 0) return findById(id);
 
   values.push(id);
-  db.prepare(`UPDATE plannings SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  await pool.execute(`UPDATE plannings SET ${updates.join(', ')} WHERE id = ?`, values);
   return findById(id);
 };
 
-export const deletePlanning = (id) => {
-  const result = db.prepare('DELETE FROM plannings WHERE id = ?').run(id);
-  return result.changes > 0;
+export const deletePlanning = async (id) => {
+  const [result] = await pool.execute('DELETE FROM plannings WHERE id = ?', [id]);
+  return result.affectedRows > 0;
 };
 
-export const addUser = (planningId, userId) => {
+export const addUser = async (planningId, userId) => {
   try {
-    db.prepare('INSERT OR IGNORE INTO planning_users (planning_id, user_id) VALUES (?, ?)').run(planningId, userId);
+    await pool.execute('INSERT IGNORE INTO planning_users (planning_id, user_id) VALUES (?, ?)', [planningId, userId]);
     return true;
   } catch {
     return false;
   }
 };
 
-export const removeUser = (planningId, userId) => {
-  const result = db.prepare('DELETE FROM planning_users WHERE planning_id = ? AND user_id = ?').run(planningId, userId);
-  return result.changes > 0;
+export const removeUser = async (planningId, userId) => {
+  const [result] = await pool.execute(
+    'DELETE FROM planning_users WHERE planning_id = ? AND user_id = ?',
+    [planningId, userId]
+  );
+  return result.affectedRows > 0;
 };
 
 const workingDaysInMonth = (yearMonth) => {
@@ -129,7 +122,7 @@ const workingDaysInMonth = (yearMonth) => {
   return count;
 };
 
-export const getAttendanceStats = (userIds, groupBy) => {
+export const getAttendanceStats = async (userIds, groupBy) => {
   let query = `
     SELECT u.id as user_id, u.name,
            p.start_date, p.end_date, p.day_type
@@ -144,7 +137,7 @@ export const getAttendanceStats = (userIds, groupBy) => {
     params.push(...userIds);
   }
 
-  const rows = db.prepare(query).all(...params);
+  const [rows] = await pool.execute(query, params);
   const periodMap = {};
 
   for (const row of rows) {
@@ -185,7 +178,7 @@ export const getAttendanceStats = (userIds, groupBy) => {
   }));
 };
 
-export const getDaysWorkedStats = (startDate, endDate) => {
+export const getDaysWorkedStats = async (startDate, endDate) => {
   let query = `
     SELECT u.id as user_id, u.name,
            p.start_date, p.end_date, p.day_type
@@ -203,12 +196,11 @@ export const getDaysWorkedStats = (startDate, endDate) => {
 
   query += ' ORDER BY u.name';
 
-  const rows = db.prepare(query).all(...params);
+  const [rows] = await pool.execute(query, params);
 
   const map = {};
   for (const row of rows) {
     if (!map[row.user_id]) map[row.user_id] = { user_id: row.user_id, name: row.name, total_days: 0, plannings_count: 0 };
-    // Clip dates to the filter period
     const effectiveStart = startDate && row.start_date < startDate ? startDate : row.start_date;
     const effectiveEnd = endDate && row.end_date > endDate ? endDate : row.end_date;
     const start = new Date(effectiveStart + 'T00:00:00');

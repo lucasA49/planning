@@ -4,14 +4,14 @@ import * as User from '../models/User.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'planning_jwt_secret_2024';
 
-export const login = (req, res) => {
+export const login = async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ success: false, message: 'Email and password are required' });
   }
 
-  const user = User.findByEmail(email);
+  const user = await User.findByEmail(email);
   if (!user) {
     return res.status(401).json({ success: false, message: 'Invalid credentials' });
   }

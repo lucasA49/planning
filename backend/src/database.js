@@ -1,78 +1,59 @@
-import { DatabaseSync } from 'node:sqlite';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import mysql from 'mysql2/promise';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = path.join(__dirname, '..', 'planning.db');
+const pool = mysql.createPool({
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'planning',
+  waitForConnections: true,
+  connectionLimit: 10,
+  charset: 'utf8mb4',
+});
 
-const db = new DatabaseSync(dbPath);
+await pool.execute(`CREATE TABLE IF NOT EXISTS users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  password VARCHAR(255) NOT NULL,
+  role ENUM('admin', 'visitor') NOT NULL DEFAULT 'visitor',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-// Remplace db.pragma() — node:sqlite utilise db.exec()
-db.exec('PRAGMA journal_mode = WAL');
-db.exec('PRAGMA foreign_keys = ON');
+await pool.execute(`CREATE TABLE IF NOT EXISTS locations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  address TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    email TEXT NOT NULL UNIQUE,
-    password TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'visitor' CHECK(role IN ('admin', 'visitor')),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+await pool.execute(`CREATE TABLE IF NOT EXISTS worksite_types (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  color VARCHAR(20) NOT NULL DEFAULT '#2563eb',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-  CREATE TABLE IF NOT EXISTS locations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    address TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+await pool.execute(`CREATE TABLE IF NOT EXISTS plannings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  week_start VARCHAR(10),
+  start_date VARCHAR(10),
+  end_date VARCHAR(10),
+  location_id INT NOT NULL,
+  worksite_type_id INT NOT NULL,
+  notes TEXT,
+  day_type VARCHAR(20) NOT NULL DEFAULT 'full',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (location_id) REFERENCES locations(id) ON DELETE CASCADE,
+  FOREIGN KEY (worksite_type_id) REFERENCES worksite_types(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-  CREATE TABLE IF NOT EXISTS worksite_types (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    description TEXT,
-    color TEXT NOT NULL DEFAULT '#2563eb',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+await pool.execute(`CREATE TABLE IF NOT EXISTS planning_users (
+  planning_id INT NOT NULL,
+  user_id INT NOT NULL,
+  PRIMARY KEY (planning_id, user_id),
+  FOREIGN KEY (planning_id) REFERENCES plannings(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-  CREATE TABLE IF NOT EXISTS plannings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    week_start TEXT NOT NULL,
-    location_id INTEGER NOT NULL,
-    worksite_type_id INTEGER NOT NULL,
-    notes TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (location_id) REFERENCES locations(id) ON DELETE CASCADE,
-    FOREIGN KEY (worksite_type_id) REFERENCES worksite_types(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS planning_users (
-    planning_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    PRIMARY KEY (planning_id, user_id),
-    FOREIGN KEY (planning_id) REFERENCES plannings(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
-`);
-
-// Migration: add start_date / end_date columns to plannings
-const cols = db.prepare('PRAGMA table_info(plannings)').all();
-if (!cols.some(c => c.name === 'start_date')) {
-  db.exec('ALTER TABLE plannings ADD COLUMN start_date TEXT');
-  db.exec('ALTER TABLE plannings ADD COLUMN end_date TEXT');
-  const rows = db.prepare('SELECT id, week_start FROM plannings WHERE week_start IS NOT NULL').all();
-  for (const row of rows) {
-    const d = new Date(row.week_start + 'T00:00:00');
-    d.setDate(d.getDate() + 6);
-    const end = d.toISOString().split('T')[0];
-    db.prepare('UPDATE plannings SET start_date = ?, end_date = ? WHERE id = ?').run(row.week_start, end, row.id);
-  }
-}
-
-// Migration: add day_type column to plannings
-if (!cols.some(c => c.name === 'day_type')) {
-  db.exec("ALTER TABLE plannings ADD COLUMN day_type TEXT NOT NULL DEFAULT 'full'");
-}
-
-export default db;
+export default pool;

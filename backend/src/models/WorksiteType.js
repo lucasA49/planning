@@ -1,22 +1,26 @@
-import db from '../database.js';
+import pool from '../database.js';
 
-export const findAll = () => {
-  return db.prepare('SELECT * FROM worksite_types ORDER BY name ASC').all();
+export const findAll = async () => {
+  const [rows] = await pool.execute('SELECT * FROM worksite_types ORDER BY name ASC');
+  return rows;
 };
 
-export const findById = (id) => {
-  return db.prepare('SELECT * FROM worksite_types WHERE id = ?').get(id);
+export const findById = async (id) => {
+  const [rows] = await pool.execute('SELECT * FROM worksite_types WHERE id = ?', [id]);
+  return rows[0] || null;
 };
 
-export const create = ({ name, description, color }) => {
-  const stmt = db.prepare('INSERT INTO worksite_types (name, description, color) VALUES (?, ?, ?)');
-  const result = stmt.run(name, description || null, color || '#2563eb');
-  return findById(result.lastInsertRowid);
+export const create = async ({ name, description, color }) => {
+  const [result] = await pool.execute(
+    'INSERT INTO worksite_types (name, description, color) VALUES (?, ?, ?)',
+    [name, description || null, color || '#2563eb']
+  );
+  return findById(result.insertId);
 };
 
-export const update = (id, { name, description, color }) => {
-  const wt = findById(id);
-  if (!wt) return null;
+export const update = async (id, { name, description, color }) => {
+  const existing = await findById(id);
+  if (!existing) return null;
 
   const updates = [];
   const values = [];
@@ -28,11 +32,11 @@ export const update = (id, { name, description, color }) => {
   if (updates.length === 0) return findById(id);
 
   values.push(id);
-  db.prepare(`UPDATE worksite_types SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  await pool.execute(`UPDATE worksite_types SET ${updates.join(', ')} WHERE id = ?`, values);
   return findById(id);
 };
 
-export const deleteWorksiteType = (id) => {
-  const result = db.prepare('DELETE FROM worksite_types WHERE id = ?').run(id);
-  return result.changes > 0;
+export const deleteWorksiteType = async (id) => {
+  const [result] = await pool.execute('DELETE FROM worksite_types WHERE id = ?', [id]);
+  return result.affectedRows > 0;
 };
