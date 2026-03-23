@@ -1,14 +1,15 @@
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dbPath = path.join(__dirname, '..', 'planning.db');
 
-const db = new Database(dbPath);
+const db = new DatabaseSync(dbPath);
 
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+// Remplace db.pragma() — node:sqlite utilise db.exec()
+db.exec('PRAGMA journal_mode = WAL');
+db.exec('PRAGMA foreign_keys = ON');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -60,7 +61,6 @@ const cols = db.prepare('PRAGMA table_info(plannings)').all();
 if (!cols.some(c => c.name === 'start_date')) {
   db.exec('ALTER TABLE plannings ADD COLUMN start_date TEXT');
   db.exec('ALTER TABLE plannings ADD COLUMN end_date TEXT');
-  // migrate existing data: start_date = week_start, end_date = week_start + 6 days
   const rows = db.prepare('SELECT id, week_start FROM plannings WHERE week_start IS NOT NULL').all();
   for (const row of rows) {
     const d = new Date(row.week_start + 'T00:00:00');
