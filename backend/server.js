@@ -17,6 +17,7 @@ const PORT = process.env.PORT || 3001;
 const IS_PROD = process.env.NODE_ENV === 'production';
 
 const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
+app.set('trust proxy', 1);
 app.use(cors({ origin: IS_PROD ? corsOrigin : true }));
 app.use(express.json());
 
