@@ -18,9 +18,10 @@ const Account = () => {
   const [account, setAccount] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Form modif infos
+  // Form informations
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [currentPwdForEmail, setCurrentPwdForEmail] = useState('');
   const [loadingInfo, setLoadingInfo] = useState(false);
   const [errorInfo, setErrorInfo] = useState('');
 
@@ -39,19 +40,18 @@ const Account = () => {
     }).finally(() => setLoading(false));
   }, []);
 
+  const emailChanged = account && email !== account.email;
+
   const handleInfoSubmit = async (e) => {
     e.preventDefault();
     setErrorInfo('');
     setLoadingInfo(true);
     try {
       const payload = { name, email };
-      if (email !== account.email) {
-        // Need current password — handled by a separate field
-        payload.current_password = currentPwdForEmail;
-      }
+      if (emailChanged) payload.current_password = currentPwdForEmail;
       const res = await api.put('/admin/account', payload);
       setAccount(res.data.data);
-      // Update auth context so navbar reflects new name/email
+      setCurrentPwdForEmail('');
       login({ ...authUser, name: res.data.data.name, email: res.data.data.email }, token);
       addToast('Informations mises à jour');
     } catch (err) {
@@ -77,10 +77,6 @@ const Account = () => {
       setLoadingPwd(false);
     }
   };
-
-  // For email change - need current password in the info form too
-  const [currentPwdForEmail, setCurrentPwdForEmail] = useState('');
-  const emailChanged = account && email !== account.email;
 
   if (loading) return <div style={{ color: '#64748b' }}>Chargement...</div>;
 
