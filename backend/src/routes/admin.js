@@ -36,6 +36,7 @@ router.delete('/worksite-types/:id', worksiteTypeController.deleteWorksiteType);
 
 // Stats
 router.get('/stats', planningController.getStats);
+router.get('/stats/attendance', planningController.getAttendance);
 
 // Plannings
 router.get('/plannings', planningController.getAll);

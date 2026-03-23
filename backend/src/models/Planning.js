@@ -117,6 +117,74 @@ export const removeUser = (planningId, userId) => {
   return result.changes > 0;
 };
 
+const workingDaysInMonth = (yearMonth) => {
+  const [y, m] = yearMonth.split('-').map(Number);
+  let count = 0;
+  const d = new Date(y, m - 1, 1);
+  while (d.getMonth() === m - 1) {
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+};
+
+export const getAttendanceStats = (userIds, groupBy) => {
+  let query = `
+    SELECT u.id as user_id, u.name,
+           p.start_date, p.end_date, p.day_type
+    FROM users u
+    JOIN planning_users pu ON u.id = pu.user_id
+    JOIN plannings p ON p.id = pu.planning_id
+    WHERE u.role = 'visitor' AND p.start_date IS NOT NULL AND p.end_date IS NOT NULL
+  `;
+  const params = [];
+  if (userIds && userIds.length > 0) {
+    query += ` AND u.id IN (${userIds.map(() => '?').join(',')})`;
+    params.push(...userIds);
+  }
+
+  const rows = db.prepare(query).all(...params);
+  const periodMap = {};
+
+  for (const row of rows) {
+    const start = new Date(row.start_date + 'T00:00:00');
+    const end = new Date(row.end_date + 'T00:00:00');
+    const dayCount = Math.round((end - start) / 86400000) + 1;
+    const multiplier = (row.day_type === 'morning' || row.day_type === 'afternoon') ? 0.5 : 1;
+    const days = dayCount * multiplier;
+
+    let periodKey;
+    if (groupBy === 'week') {
+      const d = new Date(Date.UTC(start.getFullYear(), start.getMonth(), start.getDate()));
+      const dayNum = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+      periodKey = `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+    } else {
+      periodKey = row.start_date.slice(0, 7);
+    }
+
+    if (!periodMap[periodKey]) {
+      periodMap[periodKey] = {
+        period: periodKey,
+        working_days: groupBy === 'week' ? 5 : workingDaysInMonth(periodKey),
+        workers: {}
+      };
+    }
+    if (!periodMap[periodKey].workers[row.user_id]) {
+      periodMap[periodKey].workers[row.user_id] = { user_id: row.user_id, name: row.name, days: 0 };
+    }
+    periodMap[periodKey].workers[row.user_id].days += days;
+  }
+
+  return Object.keys(periodMap).sort().map(p => ({
+    ...periodMap[p],
+    workers: Object.values(periodMap[p].workers)
+  }));
+};
+
 export const getDaysWorkedStats = (startDate, endDate) => {
   let query = `
     SELECT u.id as user_id, u.name,

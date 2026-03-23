@@ -178,3 +178,10 @@ export const getStats = (req, res) => {
   const stats = Planning.getDaysWorkedStats(start || null, end || null);
   return res.json({ success: true, data: stats });
 };
+
+export const getAttendance = (req, res) => {
+  const { users, groupBy } = req.query;
+  const userIds = users ? users.split(',').map(Number).filter(Boolean) : [];
+  const data = Planning.getAttendanceStats(userIds.length > 0 ? userIds : null, groupBy || 'month');
+  return res.json({ success: true, data });
+};
