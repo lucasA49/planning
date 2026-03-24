@@ -29,6 +29,8 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
 app.use('/api/auth', loginLimiter, authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/visitor', visitorRoutes);
@@ -52,6 +54,15 @@ const seedAdmin = async () => {
     console.log('Admin créé : admin@planning.fr / admin123');
   }
 };
+
+app.use((err, req, res, next) => {
+  console.error('Express error:', err.message);
+  res.status(500).json({ success: false, message: 'Erreur serveur' });
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled rejection:', err.message);
+});
 
 app.listen(PORT, async () => {
   console.log(`Serveur démarré sur port ${PORT}`);

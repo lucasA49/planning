@@ -11,32 +11,37 @@ export const login = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Email and password are required' });
   }
 
-  const user = await User.findByEmail(email);
-  if (!user) {
-    return res.status(401).json({ success: false, message: 'Invalid credentials' });
-  }
-
-  const validPassword = bcrypt.compareSync(password, user.password);
-  if (!validPassword) {
-    return res.status(401).json({ success: false, message: 'Invalid credentials' });
-  }
-
-  const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role, name: user.name },
-    JWT_SECRET,
-    { expiresIn: '24h' }
-  );
-
-  return res.json({
-    success: true,
-    data: {
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
+  try {
+    const user = await User.findByEmail(email);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
-  });
+
+    const validPassword = bcrypt.compareSync(password, user.password);
+    if (!validPassword) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role, name: user.name },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Login error:', err.message);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
 };
